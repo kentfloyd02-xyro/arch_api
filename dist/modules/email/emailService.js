@@ -7,6 +7,8 @@ function getTransporter() {
             host: env.BREVO_SMTP_HOST,
             port: env.BREVO_SMTP_PORT,
             secure: false, // 587 uses STARTTLS
+            pool: true,
+            maxConnections: 5,
             auth: {
                 user: env.BREVO_SMTP_USER,
                 pass: env.BREVO_SMTP_KEY

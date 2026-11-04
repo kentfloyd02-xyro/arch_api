@@ -9,6 +9,23 @@ import stubsRoutes from '../modules/stubs/stubsRoutes.js';
 
 const router = Router();
 
+// Base API Information Endpoint
+router.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'Archon Nell Centralized Backend Gateway',
+    version: '1.0.0',
+    documentation: '/api/docs',
+    endpoints: {
+      health: '/health',
+      docs: '/api/docs',
+      shopProducts: '/api/v1/shop/products',
+      shopCategories: '/api/v1/shop/categories',
+      auth: '/api/v1/auth'
+    }
+  });
+});
+
 router.use('/auth', authRoutes);
 router.use('/hrms', hrmsRoutes);
 router.use('/wfm', wfmRoutes);

@@ -45,7 +45,11 @@ app.use(
   })
 );
 
-// Redirect /docs to /api/docs
+// Redirect / and /docs to /api/docs
+app.get('/', (req: Request, res: Response) => {
+  res.redirect('/api/docs');
+});
+
 app.get('/docs', (req: Request, res: Response) => {
   res.redirect('/api/docs');
 });

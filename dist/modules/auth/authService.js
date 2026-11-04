@@ -66,8 +66,10 @@ export async function initLogin(email, passwordPlain) {
         user: payload,
         token
     });
-    // Dispatch real email via Brevo
-    await sendOtpEmail(user.email, otpCode, user.full_name);
+    // Dispatch real email via Brevo in the background (non-blocking for instant UI transition)
+    sendOtpEmail(user.email, otpCode, user.full_name).catch((err) => {
+        console.error('[Email Service Error]:', err);
+    });
     return {
         requireOtp: true,
         email: user.email,
@@ -124,7 +126,9 @@ export async function resendLoginOtp(email) {
         session.expiresAt = Date.now() + 300000;
         session.attempts = 0;
     }
-    await sendOtpEmail(cleanEmail, newCode, userName);
+    sendOtpEmail(cleanEmail, newCode, userName).catch((err) => {
+        console.error('[Email Service Error]:', err);
+    });
     return {
         success: true,
         requireOtp: true,
@@ -144,7 +148,9 @@ export async function initForgotPassword(email) {
         expiresAt: Date.now() + 300000,
         attempts: 0
     });
-    await sendPasswordResetEmail(user.email, resetCode, user.full_name);
+    sendPasswordResetEmail(user.email, resetCode, user.full_name).catch((err) => {
+        console.error('[Email Service Error]:', err);
+    });
     return {
         requireOtp: true,
         email: user.email,

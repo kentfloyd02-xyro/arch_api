@@ -35,7 +35,10 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
         filter: true
     }
 }));
-// Redirect /docs to /api/docs
+// Redirect / and /docs to /api/docs
+app.get('/', (req, res) => {
+    res.redirect('/api/docs');
+});
 app.get('/docs', (req, res) => {
     res.redirect('/api/docs');
 });
