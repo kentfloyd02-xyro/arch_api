@@ -19,9 +19,12 @@ const envSchema = z.object({
     BREVO_FROM_EMAIL: z.string().default('kentfloyd02@gmail.com'),
     BREVO_FROM_NAME: z.string().default('Archon Nell Industrial')
 });
-const parsedEnv = envSchema.safeParse(process.env);
-if (!parsedEnv.success) {
-    console.error('Invalid environment variables:', parsedEnv.error.format());
+let parsedData;
+try {
+    parsedData = envSchema.parse(process.env);
+}
+catch (error) {
+    console.error('Invalid environment variables:', error.format ? error.format() : error);
     process.exit(1);
 }
-export const env = parsedEnv.data;
+export const env = parsedData;

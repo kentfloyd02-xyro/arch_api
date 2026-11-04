@@ -21,18 +21,6 @@
   "author": "Archon Nell Capstone Team",
   "license": "ISC",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^18.0.8",
-    "express": "^5.3.0",
-    "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^10.3.1",
-    "pg": "^8.23.1",
-    "swagger-ui-express": "^5.0.1",
-    "zod": "^3.25.7"
-  },
-  "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
     "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.19",
@@ -42,7 +30,18 @@
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.11.11",
     "@types/swagger-ui-express": "^4.1.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^10.3.1",
+    "pg": "^8.23.1",
+    "swagger-ui-express": "^5.0.1",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
-  }
+    "typescript": "^5.8.2",
+    "zod": "^3.25.7"
+  },
+  "devDependencies": {}
 }

@@ -8,7 +8,7 @@ export const primaryPool = new Pool({
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  ssl: env.DATABASE_URL.includes('supabase.co') ? { rejectUnauthorized: false } : undefined
+  ssl: (env.DATABASE_URL.includes('supabase.co') || env.DATABASE_URL.includes('render.com') || env.DATABASE_URL.includes('sslmode=require') || env.DATABASE_URL.includes('neon.tech')) ? { rejectUnauthorized: false } : undefined
 });
 
 export const backupPool = env.DATABASE_BACKUP_URL

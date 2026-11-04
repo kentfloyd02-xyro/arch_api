@@ -1,9 +1,9 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 
 const router = Router();
 
 // Finance General Ledger / Disbursements Mock Endpoint
-router.get('/finance/accounts', (req, res) => {
+router.get('/finance/accounts', (req: Request, res: Response) => {
   res.json({
     success: true,
     data: [
@@ -15,7 +15,7 @@ router.get('/finance/accounts', (req, res) => {
   });
 });
 
-router.post('/finance/confirm-funding', (req, res) => {
+router.post('/finance/confirm-funding', (req: Request, res: Response) => {
   const { runId, amount, receiptNumber } = req.body;
   res.json({
     success: true,
@@ -30,7 +30,7 @@ router.post('/finance/confirm-funding', (req, res) => {
 });
 
 // Supply Chain SCM Mock Endpoint
-router.get('/scm/warehouses', (req, res) => {
+router.get('/scm/warehouses', (req: Request, res: Response) => {
   res.json({
     success: true,
     data: [

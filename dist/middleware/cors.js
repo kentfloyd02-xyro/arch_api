@@ -10,11 +10,13 @@ export const corsMiddleware = cors({
         if (allowedOriginsList.includes(origin)) {
             return callback(null, true);
         }
-        // Check wildcard subdomain matching for *.archonnell.com
+        // Check wildcard subdomain matching for *.archonnell.com and hosting platforms
         try {
             const url = new URL(origin);
             if (url.hostname === 'archonnell.com' ||
                 url.hostname.endsWith('.archonnell.com') ||
+                url.hostname.endsWith('.vercel.app') ||
+                url.hostname.endsWith('.onrender.com') ||
                 url.hostname === 'localhost' ||
                 url.hostname === '127.0.0.1') {
                 return callback(null, true);

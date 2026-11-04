@@ -530,7 +530,7 @@ ALTER TABLE shop.orders ADD COLUMN IF NOT EXISTS refund_details JSONB;
 
 -- ==============================================================================
 -- INITIAL SHOP & USER SEED DATA FOR ARCH_API
--- Inangkop mula sa dating MongoDB seeder papunta sa PostgreSQL schemas
+-- Converted from initial seeder dataset to PostgreSQL schemas
 -- ==============================================================================
 
 -- ==============================================================================
@@ -545,7 +545,7 @@ VALUES
 ON CONFLICT (slug) DO NOTHING;
 
 -- ==============================================================================
--- 2. SHOP PRODUCTS (6 na Industrial Products na may kumpletong metrics)
+-- 2. SHOP PRODUCTS (6 Industrial Products with complete catalog metrics)
 -- ==============================================================================
 INSERT INTO shop.products (custom_id, category_id, title, description, price, original_price, stock, sold, rating, discount, badge, shipping_weight_kg, sku, images, specs, is_active)
 VALUES
@@ -791,7 +791,7 @@ VALUES
   ((SELECT id FROM shop.products WHERE custom_id = 'prod-6' LIMIT 1), 'Arch. Maricel Reyes', 5, 'Accelerated initial set time from 6 hours down to 90 minutes.', TRUE, '2026-09-02 08:45:00+08');
 
 -- ==============================================================================
--- 7. SHOP ORDERS (40 Kumpletong Orders mula sa Dating MongoDB Seeder)
+-- 7. SHOP ORDERS (40 Complete Orders from initial seeder dataset)
 -- ==============================================================================
 DELETE FROM shop.order_items;
 DELETE FROM shop.orders;
