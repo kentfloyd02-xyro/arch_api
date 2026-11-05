@@ -19,7 +19,9 @@ const envSchema = z.object({
   BREVO_SMTP_USER: z.string().default(''),
   BREVO_SMTP_KEY: z.string().default(''),
   BREVO_FROM_EMAIL: z.string().default('kentfloyd02@gmail.com'),
-  BREVO_FROM_NAME: z.string().default('Archon Nell Industrial')
+  BREVO_FROM_NAME: z.string().default('Archon Nell Industrial'),
+  GEMINI_API_KEY: z.string().optional().default(''),
+  GEMINI_MODEL: z.string().default('gemini-flash-lite-latest')
 });
 
 let parsedData: z.infer<typeof envSchema>;

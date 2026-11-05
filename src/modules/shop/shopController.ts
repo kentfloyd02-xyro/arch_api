@@ -83,6 +83,15 @@ export async function updateProduct(req: Request, res: Response, next: NextFunct
 }
 
 // Vouchers
+export async function getVouchers(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await shopService.getVouchers();
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function validateVoucher(req: Request, res: Response, next: NextFunction) {
   try {
     const schema = z.object({

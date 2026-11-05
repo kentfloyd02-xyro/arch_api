@@ -210,6 +210,28 @@ export async function validateVoucher(code: string, subtotal: number) {
   };
 }
 
+export async function getVouchers() {
+  const result = await query(
+    `SELECT id, code, discount_type, discount_value, min_spend, max_discount, usage_limit, used_count, expires_at, is_active
+     FROM shop.vouchers
+     WHERE is_active = TRUE
+     ORDER BY created_at DESC`
+  );
+
+  return result.rows.map((v) => ({
+    id: v.id,
+    code: v.code,
+    discountType: v.discount_type,
+    discountValue: Number(v.discount_value),
+    minSpend: Number(v.min_spend),
+    maxDiscount: v.max_discount ? Number(v.max_discount) : null,
+    usageLimit: v.usage_limit,
+    usedCount: v.used_count,
+    expiresAt: v.expires_at,
+    isActive: v.is_active
+  }));
+}
+
 // ------------------------------------------------------------------------------
 // ORDERS & CHECKOUT (WITH AUTO-DISPATCH CREATION)
 // ------------------------------------------------------------------------------

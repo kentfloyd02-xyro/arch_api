@@ -9,6 +9,7 @@ const router = Router();
 router.get('/categories', shopController.getCategories);
 router.get('/products', shopController.getProducts);
 router.get('/products/:id', shopController.getProduct);
+router.get('/vouchers', shopController.getVouchers);
 router.post('/vouchers/validate', shopController.validateVoucher);
 router.post('/orders', shopController.checkout);
 router.get('/orders/track/:identifier', shopController.getOrder);

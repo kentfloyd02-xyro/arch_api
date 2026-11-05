@@ -431,6 +431,28 @@ CREATE TABLE IF NOT EXISTS shop.reviews (
 );
 
 -- ------------------------------------------------------------------------------
+-- 7.1 SUPPORT & CUSTOMER INQUIRIES
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS shop.support_inquiries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_number VARCHAR(50) UNIQUE NOT NULL,
+    customer_id UUID REFERENCES auth_core.users(id) ON DELETE SET NULL,
+    customer_name VARCHAR(255) NOT NULL,
+    customer_email VARCHAR(255) NOT NULL,
+    question TEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'open',
+    guest_access_token VARCHAR(255),
+    reply TEXT,
+    replied_at TIMESTAMP WITH TIME ZONE,
+    messages JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_inquiries_status ON shop.support_inquiries(status);
+CREATE INDEX IF NOT EXISTS idx_support_inquiries_created_at ON shop.support_inquiries(created_at DESC);
+
+-- ------------------------------------------------------------------------------
 -- 8. INDEXES FOR PERFORMANCE
 -- ------------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_auth_users_email ON auth_core.users(email);

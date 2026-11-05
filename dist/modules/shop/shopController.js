@@ -81,6 +81,15 @@ export async function updateProduct(req, res, next) {
     }
 }
 // Vouchers
+export async function getVouchers(req, res, next) {
+    try {
+        const data = await shopService.getVouchers();
+        res.json({ success: true, data });
+    }
+    catch (err) {
+        next(err);
+    }
+}
 export async function validateVoucher(req, res, next) {
     try {
         const schema = z.object({
