@@ -6,6 +6,7 @@ import payrollRoutes from '../modules/payroll/payrollRoutes.js';
 import fleetRoutes from '../modules/fleet/fleetRoutes.js';
 import shopRoutes from '../modules/shop/shopRoutes.js';
 import supportRoutes from '../modules/support/supportRoutes.js';
+import auditRoutes from '../modules/audit/auditRoutes.js';
 import stubsRoutes from '../modules/stubs/stubsRoutes.js';
 
 const router = Router();
@@ -24,6 +25,7 @@ router.get('/', (req, res) => {
       shopCategories: '/api/v1/shop/categories',
       shopVouchers: '/api/v1/shop/vouchers',
       support: '/api/v1/support',
+      auditLogs: '/api/v1/audit-logs',
       auth: '/api/v1/auth'
     }
   });
@@ -36,6 +38,8 @@ router.use('/payroll', payrollRoutes);
 router.use('/fleet', fleetRoutes);
 router.use('/shop', shopRoutes);
 router.use('/support', supportRoutes);
+router.use('/audit-logs', auditRoutes);
+router.use('/audit', auditRoutes);
 router.use('/stubs', stubsRoutes);
 
 export default router;
