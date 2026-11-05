@@ -8,6 +8,9 @@ import shopRoutes from '../modules/shop/shopRoutes.js';
 import supportRoutes from '../modules/support/supportRoutes.js';
 import auditRoutes from '../modules/audit/auditRoutes.js';
 import stubsRoutes from '../modules/stubs/stubsRoutes.js';
+import { analyzeReviews } from '../modules/shop/reviewAnalysisController.js';
+import { getReviews, addReview } from '../modules/shop/shopController.js';
+import { authenticate } from '../middleware/authenticate.js';
 const router = Router();
 // Base API Information Endpoint
 router.get('/', (req, res) => {
@@ -38,4 +41,8 @@ router.use('/support', supportRoutes);
 router.use('/audit-logs', auditRoutes);
 router.use('/audit', auditRoutes);
 router.use('/stubs', stubsRoutes);
+// Direct Reviews Endpoints
+router.post('/reviews/analyze', analyzeReviews);
+router.get('/reviews/:productId', getReviews);
+router.post('/reviews', authenticate, addReview);
 export default router;

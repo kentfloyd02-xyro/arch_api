@@ -331,6 +331,33 @@ export async function createOrder(data: {
     [dispatchNumber, order.id, data.deliveryAddress]
   );
 
+  // 5. Audit Log Registration
+  try {
+    let auditUserId = data.userId || null;
+    if (!auditUserId) {
+      const adminLookup = await query("SELECT id FROM auth_core.users WHERE global_role IN ('superadmin', 'admin') LIMIT 1");
+      auditUserId = adminLookup.rows[0]?.id || null;
+    }
+    await query(
+      `INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details)
+       VALUES ($1, 'orders', 'ORDER_CREATED', $2, $3)`,
+      [
+        auditUserId,
+        order.order_number,
+        JSON.stringify({
+          order_number: order.order_number,
+          customer_name: data.customerName,
+          customer_email: data.customerEmail,
+          total: data.total,
+          payment_method: data.paymentMethod,
+          items_count: data.items.length
+        })
+      ]
+    );
+  } catch (auditErr) {
+    console.warn('[Audit Log Create Order Warning]:', auditErr);
+  }
+
   return {
     ...order,
     dispatchNumber
@@ -402,17 +429,28 @@ export async function getOrderByIdOrNumber(identifier: string) {
   };
 }
 
-export async function updateOrderStatus(orderId: string, deliveryStatus: string, trackingStep?: string) {
-  const orderRes = await query('SELECT * FROM shop.orders WHERE id = $1', [orderId]);
+export async function updateOrderStatus(
+  orderIdentifier: string, 
+  deliveryStatus: string, 
+  trackingStep?: string,
+  actorUserId?: string | null,
+  actorDetails?: any
+) {
+  const orderRes = await query(
+    'SELECT * FROM shop.orders WHERE id::text = $1 OR order_number = $1 LIMIT 1', 
+    [orderIdentifier]
+  );
   if (orderRes.rows.length === 0) {
     throw { statusCode: 404, code: 'ORDER_NOT_FOUND', message: 'Order not found.' };
   }
 
   const order = orderRes.rows[0];
-  let steps = typeof order.tracking_steps === 'string' ? JSON.parse(order.tracking_steps) : order.tracking_steps;
+  let steps = typeof order.tracking_steps === 'string' ? JSON.parse(order.tracking_steps) : (order.tracking_steps || []);
+
+  const normalizedStatus = deliveryStatus.trim();
+  const nowStr = new Date().toISOString();
 
   if (trackingStep && Array.isArray(steps)) {
-    const nowStr = new Date().toISOString();
     steps = steps.map((s: any) => {
       if (s.step === trackingStep) {
         return { ...s, done: true, time: nowStr };
@@ -429,10 +467,43 @@ export async function updateOrderStatus(orderId: string, deliveryStatus: string,
          updated_at = NOW()
      WHERE id = $4
      RETURNING *`,
-    [deliveryStatus, trackingStep || null, JSON.stringify(steps), orderId]
+    [normalizedStatus, trackingStep || normalizedStatus, JSON.stringify(steps), order.id]
   );
 
-  return result.rows[0];
+  const updatedOrder = result.rows[0];
+
+  // Insert Audit Log Entry
+  try {
+    let auditUserId = actorUserId;
+    if (!auditUserId || auditUserId === 'guest') {
+      const adminLookup = await query("SELECT id FROM auth_core.users WHERE global_role IN ('superadmin', 'admin') LIMIT 1");
+      auditUserId = adminLookup.rows[0]?.id || null;
+    }
+
+    await query(
+      `INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details)
+       VALUES ($1, 'orders', 'ORDER_STATUS_UPDATED', $2, $3)`,
+      [
+        auditUserId,
+        order.order_number || order.id,
+        JSON.stringify({
+          order_id: order.id,
+          order_number: order.order_number,
+          previous_status: order.delivery_status,
+          new_status: normalizedStatus,
+          customer_name: order.customer_name,
+          total: order.total,
+          updated_by: actorDetails?.name || 'Admin',
+          notes: actorDetails?.notes || null,
+          timestamp: nowStr
+        })
+      ]
+    );
+  } catch (auditErr) {
+    console.warn('[Audit Log Error on Order Status Update]:', auditErr);
+  }
+
+  return updatedOrder;
 }
 
 // ------------------------------------------------------------------------------

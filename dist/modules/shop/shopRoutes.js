@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as shopController from './shopController.js';
+import { analyzeReviews } from './reviewAnalysisController.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 const router = Router();
@@ -12,11 +13,12 @@ router.post('/vouchers/validate', shopController.validateVoucher);
 router.post('/orders', shopController.checkout);
 router.get('/orders/track/:identifier', shopController.getOrder);
 router.get('/reviews/:productId', shopController.getReviews);
+router.post('/reviews/analyze', analyzeReviews);
 // --- Authenticated Endpoints ---
 router.post('/reviews', authenticate, shopController.addReview);
 router.get('/orders', authenticate, shopController.getOrders);
 router.get('/orders/:identifier', authenticate, shopController.getOrder);
-router.patch('/orders/:id/status', authenticate, authorize(['superadmin', 'fleet_manager']), shopController.updateOrder);
+router.patch('/orders/:id/status', authenticate, shopController.updateOrder);
 // --- Admin Management ---
 router.post('/categories', authenticate, authorize(['superadmin']), shopController.createCategory);
 router.post('/products', authenticate, authorize(['superadmin']), shopController.createProduct);

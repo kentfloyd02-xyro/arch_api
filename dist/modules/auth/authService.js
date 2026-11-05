@@ -118,7 +118,7 @@ export async function resendLoginOtp(email) {
     let session = loginOtpSessions.get(cleanEmail);
     let userName = 'Customer';
     if (!session) {
-        const userRes = await query(`SELECT id, full_name, email, role, global_role FROM auth_core.users WHERE LOWER(email) = LOWER($1)`, [cleanEmail]);
+        const userRes = await query(`SELECT id, full_name, email, global_role FROM auth_core.users WHERE LOWER(email) = LOWER($1)`, [cleanEmail]);
         if (userRes.rows.length > 0) {
             const u = userRes.rows[0];
             userName = u.full_name || 'Customer';

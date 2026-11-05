@@ -178,11 +178,31 @@ export async function getOrder(req: Request, res: Response, next: NextFunction) 
 export async function updateOrder(req: Request, res: Response, next: NextFunction) {
   try {
     const schema = z.object({
-      deliveryStatus: z.string().min(2),
-      trackingStep: z.string().optional()
+      deliveryStatus: z.string().optional(),
+      status: z.string().optional(),
+      trackingStep: z.string().optional(),
+      notes: z.string().optional(),
+      performedBy: z.any().optional()
     });
-    const { deliveryStatus, trackingStep } = schema.parse(req.body);
-    const data = await shopService.updateOrderStatus(req.params.id as string, deliveryStatus, trackingStep);
+    const parsed = schema.parse(req.body);
+    const targetStatus = parsed.deliveryStatus || parsed.status;
+    if (!targetStatus) {
+      throw { statusCode: 400, message: 'Status is required.' };
+    }
+
+    const actorUserId = req.user?.id || null;
+    const actorDetails = typeof parsed.performedBy === 'object' ? parsed.performedBy : {
+      name: parsed.performedBy || (req.user as any)?.full_name || 'Admin',
+      notes: parsed.notes
+    };
+
+    const data = await shopService.updateOrderStatus(
+      req.params.id as string,
+      targetStatus,
+      parsed.trackingStep,
+      actorUserId,
+      actorDetails
+    );
     res.json({ success: true, data });
   } catch (err) {
     next(err);
