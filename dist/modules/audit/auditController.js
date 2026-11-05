@@ -16,3 +16,24 @@ export async function getAuditLogs(req, res, next) {
         next(err);
     }
 }
+export async function createAuditLog(req, res, next) {
+    try {
+        const { module, action, resourceId, details, target } = req.body;
+        const userId = req.user?.id || null;
+        const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+        const userAgent = req.headers['user-agent'] || 'Archon Admin Console';
+        const log = await auditService.createAuditLogRecord({
+            userId,
+            module: module || 'admin',
+            action: action || 'ADMIN_OPERATION',
+            resourceId: resourceId || target,
+            details: typeof details === 'object' ? details : { details, target },
+            ipAddress,
+            userAgent
+        });
+        res.status(201).json({ success: true, data: log });
+    }
+    catch (err) {
+        next(err);
+    }
+}

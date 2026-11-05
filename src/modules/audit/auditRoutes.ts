@@ -5,5 +5,6 @@ import { authenticate } from '../../middleware/authenticate.js';
 const router = Router();
 
 router.get('/', authenticate, auditController.getAuditLogs);
+router.post('/', authenticate, auditController.createAuditLog);
 
 export default router;

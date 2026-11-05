@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as supportService from './supportService.js';
+import { createAuditLogRecord } from '../audit/auditService.js';
 
 interface RateLimitEntry {
   count: number;
@@ -28,6 +29,12 @@ function checkSupportRateLimit(key: string, limit = 5, windowMs = 30000) {
   }
 
   entry.count += 1;
+}
+
+function checkIsAdmin(user: any): boolean {
+  if (!user) return false;
+  const role = String(user.global_role || user.role || '').toLowerCase();
+  return role === 'superadmin' || role === 'admin';
 }
 
 export async function answerQuestion(req: Request, res: Response, next: NextFunction) {
@@ -87,7 +94,7 @@ export async function getInquiries(req: Request, res: Response, next: NextFuncti
   try {
     const user = (req as any).user;
     const status = req.query.status as string | undefined;
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = checkIsAdmin(user);
     const customerFilter = isAdmin ? undefined : { customerEmail: user?.email, customerId: user?.id };
     const inquiries = await supportService.getInquiries(status, customerFilter);
     res.json(inquiries);
@@ -114,15 +121,37 @@ export async function addMessage(req: Request, res: Response, next: NextFunction
       text: z.string().min(1)
     });
     const { text } = schema.parse(req.body);
-    const sender = user?.global_role === 'superadmin' ? 'admin' : 'user';
+    const isAdmin = checkIsAdmin(user);
+    const sender = isAdmin ? 'admin' : 'user';
 
     // Rate limit customer messages
-    if (sender === 'user') {
+    if (!isAdmin) {
       const clientKey = user?.email || req.ip || 'anonymous';
       checkSupportRateLimit(clientKey, 5, 30000);
     }
 
     const result = await supportService.addMessage(id, text, sender);
+
+    if (isAdmin) {
+      try {
+        await createAuditLogRecord({
+          userId: user?.id || null,
+          module: 'support',
+          action: 'SUPPORT_TICKET_REPLIED',
+          resourceId: result.inquiry?.ticketNumber || id,
+          details: {
+            ticketNumber: result.inquiry?.ticketNumber || id,
+            customerEmail: result.inquiry?.customerEmail,
+            message: text.slice(0, 100)
+          },
+          ipAddress: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1',
+          userAgent: (req.headers['user-agent'] as string) || 'Archon Support'
+        });
+      } catch (e) {
+        console.warn('[Audit Log] Support admin message log error:', e);
+      }
+    }
+
     res.json(result);
   } catch (err) {
     next(err);
@@ -131,12 +160,32 @@ export async function addMessage(req: Request, res: Response, next: NextFunction
 
 export async function replyInquiry(req: Request, res: Response, next: NextFunction) {
   try {
+    const user = (req as any).user;
     const id = req.params.id as string;
     const schema = z.object({
       reply: z.string().min(1)
     });
     const { reply } = schema.parse(req.body);
     const result = await supportService.replyInquiry(id, reply);
+
+    try {
+      await createAuditLogRecord({
+        userId: user?.id || null,
+        module: 'support',
+        action: 'SUPPORT_TICKET_REPLIED',
+        resourceId: result.inquiry?.ticketNumber || id,
+        details: {
+          ticketNumber: result.inquiry?.ticketNumber || id,
+          customerEmail: result.inquiry?.customerEmail,
+          reply: reply.slice(0, 100)
+        },
+        ipAddress: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1',
+        userAgent: (req.headers['user-agent'] as string) || 'Archon Support'
+      });
+    } catch (e) {
+      console.warn('[Audit Log] Support reply log error:', e);
+    }
+
     res.json(result);
   } catch (err) {
     next(err);
@@ -145,8 +194,27 @@ export async function replyInquiry(req: Request, res: Response, next: NextFuncti
 
 export async function closeInquiry(req: Request, res: Response, next: NextFunction) {
   try {
+    const user = (req as any).user;
     const id = req.params.id as string;
     const result = await supportService.closeInquiry(id);
+
+    try {
+      await createAuditLogRecord({
+        userId: user?.id || null,
+        module: 'support',
+        action: 'SUPPORT_TICKET_CLOSED',
+        resourceId: result.ticketNumber || id,
+        details: {
+          ticketNumber: result.ticketNumber || id,
+          customerEmail: result.customerEmail
+        },
+        ipAddress: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1',
+        userAgent: (req.headers['user-agent'] as string) || 'Archon Support'
+      });
+    } catch (e) {
+      console.warn('[Audit Log] Support close ticket log error:', e);
+    }
+
     res.json(result);
   } catch (err) {
     next(err);

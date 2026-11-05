@@ -102,3 +102,38 @@ export async function getAuditLogs(options: AuditLogQueryOptions = {}) {
     };
   });
 }
+
+export async function createAuditLogRecord(data: {
+  userId?: string | null;
+  module: string;
+  action: string;
+  resourceId?: string | null;
+  details?: any;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}) {
+  let finalUserId = data.userId;
+  if (!finalUserId || finalUserId === 'guest') {
+    const adminLookup = await query("SELECT id FROM auth_core.users WHERE global_role IN ('superadmin', 'admin') LIMIT 1");
+    finalUserId = adminLookup.rows[0]?.id || null;
+  }
+
+  const detailsObj = typeof data.details === 'object' ? data.details : { message: data.details || 'Admin operation' };
+
+  const res = await query(
+    `INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details, ip_address, user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [
+      finalUserId,
+      data.module || 'admin',
+      data.action || 'ADMIN_ACTION',
+      data.resourceId || null,
+      JSON.stringify(detailsObj),
+      data.ipAddress || '127.0.0.1',
+      data.userAgent || 'Archon Admin Console'
+    ]
+  );
+
+  return res.rows[0];
+}
