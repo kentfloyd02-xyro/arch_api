@@ -115,14 +115,35 @@ export async function createInquiry(payload: SupportInquiryPayload) {
   };
 }
 
-export async function getInquiries(statusFilter?: string) {
+export async function getInquiries(
+  statusFilter?: string,
+  customerFilter?: { customerEmail?: string; customerId?: string }
+) {
   let sql = `SELECT * FROM shop.support_inquiries`;
+  const conditions: string[] = [];
   const params: any[] = [];
 
   if (statusFilter === 'open') {
-    sql += ` WHERE status != 'closed'`;
+    conditions.push(`status != 'closed'`);
   } else if (statusFilter === 'closed') {
-    sql += ` WHERE status = 'closed'`;
+    conditions.push(`status = 'closed'`);
+  }
+
+  if (customerFilter) {
+    if (customerFilter.customerEmail && customerFilter.customerId) {
+      params.push(customerFilter.customerEmail.toLowerCase(), customerFilter.customerId);
+      conditions.push(`(LOWER(customer_email) = $${params.length - 1} OR customer_id = $${params.length})`);
+    } else if (customerFilter.customerEmail) {
+      params.push(customerFilter.customerEmail.toLowerCase());
+      conditions.push(`LOWER(customer_email) = $${params.length}`);
+    } else if (customerFilter.customerId) {
+      params.push(customerFilter.customerId);
+      conditions.push(`customer_id = $${params.length}`);
+    }
+  }
+
+  if (conditions.length > 0) {
+    sql += ` WHERE ` + conditions.join(' AND ');
   }
 
   sql += ` ORDER BY created_at DESC`;

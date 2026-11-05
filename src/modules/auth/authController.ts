@@ -32,7 +32,11 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   fullName: z.string().min(2),
-  role: z.string().optional()
+  role: z.string().optional(),
+  phoneNumber: z.string().optional(),
+  phone: z.string().optional(),
+  company: z.string().optional(),
+  defaultAddress: z.string().optional()
 });
 
 export async function login(req: Request, res: Response, next: NextFunction) {
@@ -77,13 +81,15 @@ export async function verifyOtp(req: Request, res: Response, next: NextFunction)
     const { email, code } = verifyOtpSchema.parse(req.body);
     const result = await authService.verifyLoginOtp(email, code);
 
-    res.cookie('archon_token', result.token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === 'production',
-      sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
-      domain: env.COOKIE_DOMAIN === 'localhost' ? undefined : env.COOKIE_DOMAIN,
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+    if (result.token) {
+      res.cookie('archon_token', result.token, {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+        domain: env.COOKIE_DOMAIN === 'localhost' ? undefined : env.COOKIE_DOMAIN,
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+    }
 
     res.json({
       success: true,
@@ -138,12 +144,22 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
 
 export async function register(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password, fullName, role } = registerSchema.parse(req.body);
-    const result = await authService.registerUser(email, password, fullName, role || 'customer');
+    const { email, password, fullName, role, phoneNumber, phone, company, defaultAddress } = registerSchema.parse(req.body);
+    const result = await authService.registerUser(
+      email,
+      password,
+      fullName,
+      role || 'customer',
+      phoneNumber || phone,
+      company,
+      defaultAddress
+    );
 
     res.status(201).json({
       success: true,
-      data: result
+      data: result,
+      token: result.token,
+      user: result.user
     });
   } catch (err) {
     next(err);

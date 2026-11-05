@@ -9,7 +9,7 @@ interface OtpSession {
   expiresAt: number;
   attempts: number;
   user: any;
-  token: string;
+  token?: string;
 }
 
 interface ResetSession {
@@ -147,40 +147,76 @@ export async function verifyLoginOtp(email: string, code: string) {
   const verifiedToken = session.token;
   loginOtpSessions.delete(cleanEmail);
 
-  // Log to audit log
-  await query(
-    `INSERT INTO auth_core.audit_logs (user_id, module, action, details)
-     VALUES ($1, 'auth', 'USER_LOGIN_2FA', $2)`,
-    [verifiedUser.id, JSON.stringify({ email: verifiedUser.email, role: verifiedUser.global_role })]
-  );
+  // Log to audit log if authenticated user
+  if (verifiedUser?.id && verifiedUser.id !== 'guest') {
+    try {
+      await query(
+        `INSERT INTO auth_core.audit_logs (user_id, module, action, details)
+         VALUES ($1, 'auth', 'USER_LOGIN_2FA', $2)`,
+        [verifiedUser.id, JSON.stringify({ email: verifiedUser.email, role: verifiedUser.global_role })]
+      );
+    } catch (auditErr) {
+      console.warn('[Audit Log Warning]:', auditErr);
+    }
+  }
 
   return {
-    token: verifiedToken,
+    token: verifiedToken || '',
     user: verifiedUser
   };
 }
 
 export async function resendLoginOtp(email: string) {
   const cleanEmail = email.trim().toLowerCase();
-  const session = loginOtpSessions.get(cleanEmail);
-  let userName = 'User';
+  let session = loginOtpSessions.get(cleanEmail);
+  let userName = 'Customer';
 
-  if (session) {
-    userName = session.user?.full_name || 'User';
-  } else {
-    const userRes = await query(`SELECT full_name FROM auth_core.users WHERE LOWER(email) = LOWER($1)`, [cleanEmail]);
-    if (userRes.rows.length === 0) {
-      throw { statusCode: 404, code: 'USER_NOT_FOUND', message: 'User not found.' };
+  if (!session) {
+    const userRes = await query(
+      `SELECT id, full_name, email, role, global_role FROM auth_core.users WHERE LOWER(email) = LOWER($1)`,
+      [cleanEmail]
+    );
+    if (userRes.rows.length > 0) {
+      const u = userRes.rows[0];
+      userName = u.full_name || 'Customer';
+      const payload = {
+        id: u.id,
+        email: u.email,
+        full_name: u.full_name,
+        global_role: u.global_role
+      };
+      const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: '7d' });
+      session = {
+        otpCode: '',
+        user: payload,
+        token,
+        expiresAt: Date.now() + 300000,
+        attempts: 0
+      };
+    } else {
+      session = {
+        otpCode: '',
+        user: {
+          id: 'guest',
+          full_name: 'Customer',
+          email: cleanEmail,
+          role: 'customer',
+          global_role: 'customer'
+        },
+        token: '',
+        expiresAt: Date.now() + 300000,
+        attempts: 0
+      };
     }
-    userName = userRes.rows[0].full_name;
+    loginOtpSessions.set(cleanEmail, session);
+  } else {
+    userName = session.user?.full_name || 'Customer';
   }
 
   const newCode = String(Math.floor(100000 + Math.random() * 900000));
-  if (session) {
-    session.otpCode = newCode;
-    session.expiresAt = Date.now() + 300000;
-    session.attempts = 0;
-  }
+  session.otpCode = newCode;
+  session.expiresAt = Date.now() + 300000;
+  session.attempts = 0;
 
   sendOtpEmail(cleanEmail, newCode, userName).catch((err) => {
     console.error('[Email Service Error]:', err);
@@ -189,7 +225,8 @@ export async function resendLoginOtp(email: string) {
   return {
     success: true,
     requireOtp: true,
-    message: `New verification code sent to ${cleanEmail}.`
+    code: newCode,
+    message: `Verification code sent to ${cleanEmail}.`
   };
 }
 
@@ -261,21 +298,35 @@ export async function verifyForgotPassword(email: string, code: string, newPassw
   };
 }
 
-export async function registerUser(email: string, passwordPlain: string, fullName: string, role: string = 'customer') {
+export async function registerUser(
+  email: string,
+  passwordPlain: string,
+  fullName: string,
+  role: string = 'customer',
+  phoneNumber?: string,
+  company?: string,
+  defaultAddress?: string
+) {
   const existing = await query('SELECT id FROM auth_core.users WHERE LOWER(email) = LOWER($1)', [email]);
   if (existing.rows.length > 0) {
     throw { statusCode: 409, code: 'EMAIL_ALREADY_EXISTS', message: 'An account with this email already exists.' };
   }
 
+  // Max 11 digits numeric phone number format (Philippine mobile standard)
+  const cleanPhone = phoneNumber ? phoneNumber.replace(/\D/g, '').slice(0, 11) : null;
   const passwordHash = await bcrypt.hash(passwordPlain, 10);
   const result = await query(
-    `INSERT INTO auth_core.users (email, password_hash, full_name, global_role)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id, email, full_name, global_role, created_at`,
-    [email, passwordHash, fullName, role]
+    `INSERT INTO auth_core.users (email, password_hash, full_name, global_role, phone_number, company, default_address)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, email, full_name, global_role, phone_number, created_at`,
+    [email, passwordHash, fullName, role, cleanPhone, company || null, defaultAddress || null]
   );
 
-  const newUser = result.rows[0];
+  const newUser = {
+    ...result.rows[0],
+    phoneNumber: result.rows[0].phone_number,
+    phone: result.rows[0].phone_number
+  };
   const token = jwt.sign(
     { id: newUser.id, email: newUser.email, full_name: newUser.full_name, global_role: newUser.global_role },
     env.JWT_SECRET,
