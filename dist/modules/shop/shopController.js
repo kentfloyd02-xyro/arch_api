@@ -28,12 +28,13 @@ export async function createCategory(req, res, next) {
 // Products
 export async function getProducts(req, res, next) {
     try {
-        const { category, category_id, search, include_inactive } = req.query;
+        const { category, category_id, search, include_inactive, include_deleted } = req.query;
         const data = await shopService.getAllProducts({
             categorySlug: category,
             categoryId: category_id,
             search: search,
-            includeInactive: include_inactive === 'true'
+            includeInactive: include_inactive === 'true',
+            includeDeleted: include_deleted === 'true'
         });
         res.json({ success: true, data });
     }
@@ -93,8 +94,22 @@ export async function archiveProduct(req, res, next) {
 }
 export async function deleteProduct(req, res, next) {
     try {
-        const data = await shopService.deleteProduct(req.params.id);
-        res.json({ success: true, message: 'Product deleted successfully', data });
+        const permanent = req.query.permanent === 'true';
+        const data = await shopService.deleteProduct(req.params.id, permanent);
+        res.json({
+            success: true,
+            message: permanent ? 'Product permanently deleted' : 'Product moved to trash',
+            data
+        });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+export async function restoreProduct(req, res, next) {
+    try {
+        const data = await shopService.restoreProduct(req.params.id);
+        res.json({ success: true, message: 'Product restored successfully', data });
     }
     catch (err) {
         next(err);

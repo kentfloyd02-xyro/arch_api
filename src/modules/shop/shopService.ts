@@ -30,6 +30,7 @@ export async function getAllProducts(options: {
   categoryId?: string;
   search?: string;
   includeInactive?: boolean;
+  includeDeleted?: boolean;
 } = {}) {
   let sql = `
     SELECT p.*, c.name AS category_name, c.slug AS category_slug,
@@ -42,6 +43,9 @@ export async function getAllProducts(options: {
   `;
   const params: any[] = [];
 
+  if (!options.includeDeleted) {
+    sql += ` AND p.deleted_at IS NULL`;
+  }
   if (!options.includeInactive) {
     sql += ` AND p.is_active = TRUE`;
   }
@@ -225,37 +229,99 @@ export async function archiveProduct(id: string, isActive?: boolean) {
   return result.rows[0];
 }
 
-export async function deleteProduct(id: string) {
+export async function deleteProduct(id: string, permanent: boolean = false) {
   const current = await getProductById(id);
-  await query(`UPDATE shop.order_items SET product_id = NULL WHERE product_id = $1`, [current.id]);
-  await query(`DELETE FROM shop.reviews WHERE product_id = $1`, [current.id]);
+
+  if (permanent) {
+    await query(`UPDATE shop.order_items SET product_id = NULL WHERE product_id = $1`, [current.id]);
+    await query(`DELETE FROM shop.reviews WHERE product_id = $1`, [current.id]);
+    const result = await query(
+      `DELETE FROM shop.products WHERE id::text = $1 OR custom_id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      throw { statusCode: 404, code: 'PRODUCT_NOT_FOUND', message: 'Product not found.' };
+    }
+
+    try {
+      const adminLookup = await query("SELECT id FROM auth_core.users WHERE global_role IN ('superadmin', 'admin') LIMIT 1");
+      const auditUserId = adminLookup.rows[0]?.id || null;
+      await query(
+        `INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details)
+         VALUES ($1, 'inventory', 'PRODUCT_PERMANENTLY_DELETED', $2, $3)`,
+        [
+          auditUserId,
+          current.title || id,
+          JSON.stringify({
+            product_id: id,
+            title: current.title,
+            details: `Product "${current.title}" permanently removed from catalog`
+          })
+        ]
+      );
+    } catch (e) {}
+
+    return result.rows[0];
+  } else {
+    const result = await query(
+      `UPDATE shop.products SET deleted_at = NOW(), is_active = false, updated_at = NOW() WHERE id::text = $1 OR custom_id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      throw { statusCode: 404, code: 'PRODUCT_NOT_FOUND', message: 'Product not found.' };
+    }
+
+    try {
+      const adminLookup = await query("SELECT id FROM auth_core.users WHERE global_role IN ('superadmin', 'admin') LIMIT 1");
+      const auditUserId = adminLookup.rows[0]?.id || null;
+      await query(
+        `INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details)
+         VALUES ($1, 'inventory', 'PRODUCT_DELETED', $2, $3)`,
+        [
+          auditUserId,
+          current.title || id,
+          JSON.stringify({
+            product_id: id,
+            title: current.title,
+            details: `Product "${current.title}" moved to trash`
+          })
+        ]
+      );
+    } catch (e) {}
+
+    return result.rows[0];
+  }
+}
+
+export async function restoreProduct(id: string) {
   const result = await query(
-    `DELETE FROM shop.products WHERE id::text = $1 OR custom_id = $1 RETURNING *`,
+    `UPDATE shop.products SET deleted_at = NULL, is_active = true, updated_at = NOW() WHERE id::text = $1 OR custom_id = $1 RETURNING *`,
     [id]
   );
   if (result.rows.length === 0) {
     throw { statusCode: 404, code: 'PRODUCT_NOT_FOUND', message: 'Product not found.' };
   }
+  const current = result.rows[0];
 
   try {
     const adminLookup = await query("SELECT id FROM auth_core.users WHERE global_role IN ('superadmin', 'admin') LIMIT 1");
     const auditUserId = adminLookup.rows[0]?.id || null;
     await query(
       `INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details)
-       VALUES ($1, 'inventory', 'PRODUCT_DELETED', $2, $3)`,
+       VALUES ($1, 'inventory', 'PRODUCT_RESTORED', $2, $3)`,
       [
         auditUserId,
         current.title || id,
         JSON.stringify({
           product_id: id,
           title: current.title,
-          details: `Product "${current.title}" permanently removed from catalog`
+          details: `Product "${current.title}" restored from trash`
         })
       ]
     );
   } catch (e) {}
 
-  return result.rows[0];
+  return current;
 }
 
 // ------------------------------------------------------------------------------

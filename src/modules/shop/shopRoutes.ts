@@ -29,6 +29,7 @@ router.post('/categories', authenticate, authorize(['superadmin', 'admin']), sho
 router.post('/products', authenticate, authorize(['superadmin', 'admin']), shopController.createProduct);
 router.put('/products/:id', authenticate, authorize(['superadmin', 'admin']), shopController.updateProduct);
 router.patch('/products/:id/archive', authenticate, authorize(['superadmin', 'admin']), shopController.archiveProduct);
+router.patch('/products/:id/restore', authenticate, authorize(['superadmin', 'admin']), shopController.restoreProduct);
 router.delete('/products/:id', authenticate, authorize(['superadmin', 'admin']), shopController.deleteProduct);
 
 export default router;

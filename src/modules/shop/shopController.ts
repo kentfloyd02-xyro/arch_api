@@ -30,12 +30,13 @@ export async function createCategory(req: Request, res: Response, next: NextFunc
 // Products
 export async function getProducts(req: Request, res: Response, next: NextFunction) {
   try {
-    const { category, category_id, search, include_inactive } = req.query;
+    const { category, category_id, search, include_inactive, include_deleted } = req.query;
     const data = await shopService.getAllProducts({
       categorySlug: category as string,
       categoryId: category_id as string,
       search: search as string,
-      includeInactive: include_inactive === 'true'
+      includeInactive: include_inactive === 'true',
+      includeDeleted: include_deleted === 'true'
     });
     res.json({ success: true, data });
   } catch (err) {
@@ -95,8 +96,22 @@ export async function archiveProduct(req: Request, res: Response, next: NextFunc
 
 export async function deleteProduct(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await shopService.deleteProduct(req.params.id as string);
-    res.json({ success: true, message: 'Product deleted successfully', data });
+    const permanent = req.query.permanent === 'true';
+    const data = await shopService.deleteProduct(req.params.id as string, permanent);
+    res.json({
+      success: true,
+      message: permanent ? 'Product permanently deleted' : 'Product moved to trash',
+      data
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function restoreProduct(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await shopService.restoreProduct(req.params.id as string);
+    res.json({ success: true, message: 'Product restored successfully', data });
   } catch (err) {
     next(err);
   }
