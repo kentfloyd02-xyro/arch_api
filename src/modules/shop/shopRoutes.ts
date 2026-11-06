@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as shopController from './shopController.js';
 import { analyzeReviews } from './reviewAnalysisController.js';
-import { authenticate } from '../../middleware/authenticate.js';
+import { authenticate, optionalAuthenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 
 const router = Router();
@@ -10,6 +10,7 @@ const router = Router();
 router.get('/categories', shopController.getCategories);
 router.get('/products', shopController.getProducts);
 router.get('/products/:id', shopController.getProduct);
+router.get('/projects', shopController.getProjects);
 router.get('/vouchers', shopController.getVouchers);
 router.post('/vouchers/validate', shopController.validateVoucher);
 router.post('/orders', shopController.checkout);
@@ -21,11 +22,11 @@ router.post('/reviews/analyze', analyzeReviews);
 router.post('/reviews', authenticate, shopController.addReview);
 router.get('/orders', authenticate, shopController.getOrders);
 router.get('/orders/:identifier', authenticate, shopController.getOrder);
-router.patch('/orders/:id/status', authenticate, shopController.updateOrder);
+router.patch('/orders/:id/status', optionalAuthenticate, shopController.updateOrder);
 
-// --- Admin Management ---
-router.post('/categories', authenticate, authorize(['superadmin']), shopController.createCategory);
-router.post('/products', authenticate, authorize(['superadmin']), shopController.createProduct);
-router.put('/products/:id', authenticate, authorize(['superadmin']), shopController.updateProduct);
+// --- Admin Management (Allowed for superadmin and admin) ---
+router.post('/categories', authenticate, authorize(['superadmin', 'admin']), shopController.createCategory);
+router.post('/products', authenticate, authorize(['superadmin', 'admin']), shopController.createProduct);
+router.put('/products/:id', authenticate, authorize(['superadmin', 'admin']), shopController.updateProduct);
 
 export default router;

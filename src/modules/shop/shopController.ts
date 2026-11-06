@@ -56,6 +56,7 @@ export async function createProduct(req: Request, res: Response, next: NextFunct
   try {
     const schema = z.object({
       categoryId: z.string().uuid().optional(),
+      category: z.string().optional(),
       customId: z.string().optional(),
       title: z.string().min(2),
       description: z.string().optional(),
@@ -63,7 +64,8 @@ export async function createProduct(req: Request, res: Response, next: NextFunct
       stock: z.number().int().nonnegative().optional(),
       sku: z.string().optional(),
       images: z.array(z.string()).optional(),
-      specs: z.record(z.any()).optional()
+      specs: z.record(z.any()).optional(),
+      shippingWeightKg: z.number().optional()
     });
     const parsed = schema.parse(req.body);
     const data = await shopService.createProduct(parsed);
@@ -86,6 +88,16 @@ export async function updateProduct(req: Request, res: Response, next: NextFunct
 export async function getVouchers(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await shopService.getVouchers();
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Projects
+export async function getProjects(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await shopService.getProjects();
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -153,10 +165,14 @@ export async function checkout(req: Request, res: Response, next: NextFunction) 
 export async function getOrders(req: Request, res: Response, next: NextFunction) {
   try {
     const { status, search } = req.query;
-    // If not admin, restrict to logged-in user
-    const userId = req.user && req.user.global_role !== 'superadmin' ? req.user.id : undefined;
+    const userRole = String(req.user?.global_role || (req.user as any)?.role || '').toLowerCase();
+    const isAdmin = userRole === 'superadmin' || userRole === 'admin';
+    const userId = isAdmin ? undefined : req.user?.id;
+    const customerEmail = isAdmin ? undefined : req.user?.email;
+
     const data = await shopService.getAllOrders({
       userId,
+      customerEmail,
       status: status as string,
       search: search as string
     });
@@ -182,6 +198,9 @@ export async function updateOrder(req: Request, res: Response, next: NextFunctio
       status: z.string().optional(),
       trackingStep: z.string().optional(),
       notes: z.string().optional(),
+      cancelReason: z.string().optional(),
+      refundDetails: z.any().optional(),
+      restoreStock: z.boolean().optional(),
       performedBy: z.any().optional()
     });
     const parsed = schema.parse(req.body);
@@ -192,7 +211,7 @@ export async function updateOrder(req: Request, res: Response, next: NextFunctio
 
     const actorUserId = req.user?.id || null;
     const actorDetails = typeof parsed.performedBy === 'object' ? parsed.performedBy : {
-      name: parsed.performedBy || (req.user as any)?.full_name || 'Admin',
+      name: parsed.performedBy || (req.user as any)?.full_name || 'User',
       notes: parsed.notes
     };
 
@@ -201,7 +220,10 @@ export async function updateOrder(req: Request, res: Response, next: NextFunctio
       targetStatus,
       parsed.trackingStep,
       actorUserId,
-      actorDetails
+      actorDetails,
+      parsed.cancelReason || parsed.notes,
+      parsed.refundDetails,
+      parsed.restoreStock
     );
     res.json({ success: true, data });
   } catch (err) {

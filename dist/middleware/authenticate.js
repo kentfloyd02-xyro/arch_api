@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 export function authenticate(req, res, next) {
-    // Check Authorization Header: Bearer <token>
     const authHeader = req.headers.authorization;
     let token;
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -33,4 +32,24 @@ export function authenticate(req, res, next) {
             }
         });
     }
+}
+export function optionalAuthenticate(req, res, next) {
+    const authHeader = req.headers.authorization;
+    let token;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+    }
+    else if (req.cookies && req.cookies.archon_token) {
+        token = req.cookies.archon_token;
+    }
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, env.JWT_SECRET);
+            req.user = decoded;
+        }
+        catch {
+            // Ignore token decode error for optional auth
+        }
+    }
+    next();
 }

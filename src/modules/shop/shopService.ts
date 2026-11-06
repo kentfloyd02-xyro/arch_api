@@ -72,7 +72,7 @@ export async function getProductById(id: string) {
      FROM shop.products p
      LEFT JOIN shop.categories c ON c.id = p.category_id
      LEFT JOIN shop.reviews r ON r.product_id = p.id
-     WHERE p.id = $1 OR p.custom_id = $1
+     WHERE p.id::text = $1 OR p.custom_id = $1
      GROUP BY p.id, c.name, c.slug`,
     [id]
   );
@@ -85,6 +85,7 @@ export async function getProductById(id: string) {
 
 export async function createProduct(data: {
   categoryId?: string;
+  category?: string;
   customId?: string;
   title: string;
   description?: string;
@@ -93,22 +94,37 @@ export async function createProduct(data: {
   sku?: string;
   images?: string[];
   specs?: Record<string, any>;
+  shippingWeightKg?: number;
 }) {
+  let resolvedCatId = data.categoryId || null;
+  if (!resolvedCatId && data.category) {
+    const catCheck = await query(
+      `SELECT id FROM shop.categories WHERE slug = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1`,
+      [data.category.trim()]
+    );
+    if (catCheck.rows.length > 0) {
+      resolvedCatId = catCheck.rows[0].id;
+    } else {
+      const defaultCat = await query(`SELECT id FROM shop.categories LIMIT 1`);
+      resolvedCatId = defaultCat.rows[0]?.id || null;
+    }
+  }
+
   const result = await query(
     `INSERT INTO shop.products (
        category_id, custom_id, title, description, price, stock, sku, images, specs
      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
-      data.categoryId || null,
-      data.customId || `prod-${Date.now().toString().slice(-5)}`,
+      resolvedCatId,
+      data.customId || `prod-${Date.now().toString().slice(-6)}`,
       data.title,
       data.description || null,
       data.price,
-      data.stock || 0,
-      data.sku || null,
-      JSON.stringify(data.images || []),
-      JSON.stringify(data.specs || {})
+      data.stock || 20,
+      data.sku || `AN-SKU-${Date.now().toString().slice(-6)}`,
+      JSON.stringify(data.images || ['/assets/images/leveling_mortar_1785519746126.png']),
+      JSON.stringify(data.specs || { shippingWeightKg: data.shippingWeightKg || 20 })
     ]
   );
   return result.rows[0];
@@ -116,6 +132,7 @@ export async function createProduct(data: {
 
 export async function updateProduct(id: string, data: Partial<{
   categoryId: string;
+  category: string;
   title: string;
   description: string;
   price: number;
@@ -125,6 +142,17 @@ export async function updateProduct(id: string, data: Partial<{
   specs: Record<string, any>;
   isActive: boolean;
 }>) {
+  let catId = data.categoryId;
+  if (!catId && data.category) {
+    const catCheck = await query(
+      `SELECT id FROM shop.categories WHERE slug = LOWER($1) OR LOWER(name) = LOWER($1) LIMIT 1`,
+      [data.category.trim()]
+    );
+    if (catCheck.rows.length > 0) {
+      catId = catCheck.rows[0].id;
+    }
+  }
+
   const fields: string[] = [];
   const params: any[] = [id];
 
@@ -138,8 +166,11 @@ export async function updateProduct(id: string, data: Partial<{
     isActive: 'is_active'
   };
 
-  for (const [key, val] of Object.entries(data)) {
-    if (val !== undefined) {
+  const toProcess: any = { ...data };
+  if (catId) toProcess.categoryId = catId;
+
+  for (const [key, val] of Object.entries(toProcess)) {
+    if (val !== undefined && key !== 'category') {
       if (key === 'images' || key === 'specs') {
         params.push(JSON.stringify(val));
         fields.push(`${key} = $${params.length}`);
@@ -155,7 +186,7 @@ export async function updateProduct(id: string, data: Partial<{
   }
 
   fields.push('updated_at = NOW()');
-  const sql = `UPDATE shop.products SET ${fields.join(', ')} WHERE id = $1 RETURNING *`;
+  const sql = `UPDATE shop.products SET ${fields.join(', ')} WHERE id::text = $1 OR custom_id = $1 RETURNING *`;
   const result = await query(sql, params);
   return result.rows[0];
 }
@@ -230,6 +261,19 @@ export async function getVouchers() {
     expiresAt: v.expires_at,
     isActive: v.is_active
   }));
+}
+
+// ------------------------------------------------------------------------------
+// PROJECTS (ENGINEERING INFRASTRUCTURE PORTFOLIO)
+// ------------------------------------------------------------------------------
+
+export async function getProjects() {
+  const result = await query(
+    `SELECT id, custom_id AS "customId", title, location, date, contractor, region, summary, image, created_at AS "createdAt"
+     FROM shop.projects
+     ORDER BY created_at ASC`
+  );
+  return result.rows;
 }
 
 // ------------------------------------------------------------------------------
@@ -366,11 +410,26 @@ export async function createOrder(data: {
 
 export async function getAllOrders(options: {
   userId?: string;
+  customerEmail?: string;
   status?: string;
   search?: string;
 } = {}) {
   let sql = `
-    SELECT o.*, COUNT(oi.id)::int AS total_items,
+    SELECT o.*,
+           COALESCE(
+             JSON_AGG(
+               JSON_BUILD_OBJECT(
+                 'id', oi.id,
+                 'productId', oi.product_id,
+                 'title', oi.title,
+                 'price', oi.price,
+                 'quantity', oi.quantity,
+                 'total', oi.total
+               )
+             ) FILTER (WHERE oi.id IS NOT NULL),
+             '[]'::json
+           ) AS items,
+           COUNT(oi.id)::int AS total_items,
            d.dispatch_number, d.status AS dispatch_status, d.driver_id,
            dr.first_name AS driver_first_name, dr.last_name AS driver_last_name
     FROM shop.orders o
@@ -381,9 +440,18 @@ export async function getAllOrders(options: {
     WHERE 1=1
   `;
   const params: any[] = [];
-  if (options.userId) {
+  if (options.userId && options.customerEmail) {
+    params.push(options.userId);
+    const p1 = params.length;
+    params.push(options.customerEmail.toLowerCase());
+    const p2 = params.length;
+    sql += ` AND (o.user_id = $${p1} OR LOWER(o.customer_email) = $${p2})`;
+  } else if (options.userId) {
     params.push(options.userId);
     sql += ` AND o.user_id = $${params.length}`;
+  } else if (options.customerEmail) {
+    params.push(options.customerEmail.toLowerCase());
+    sql += ` AND LOWER(o.customer_email) = $${params.length}`;
   }
   if (options.status && options.status !== 'all') {
     params.push(options.status);
@@ -434,7 +502,10 @@ export async function updateOrderStatus(
   deliveryStatus: string, 
   trackingStep?: string,
   actorUserId?: string | null,
-  actorDetails?: any
+  actorDetails?: any,
+  cancelReason?: string,
+  refundDetails?: any,
+  restoreStock?: boolean
 ) {
   const orderRes = await query(
     'SELECT * FROM shop.orders WHERE id::text = $1 OR order_number = $1 LIMIT 1', 
@@ -447,10 +518,29 @@ export async function updateOrderStatus(
   const order = orderRes.rows[0];
   let steps = typeof order.tracking_steps === 'string' ? JSON.parse(order.tracking_steps) : (order.tracking_steps || []);
 
-  const normalizedStatus = deliveryStatus.trim();
+  const normalizedStatus = deliveryStatus.trim().toUpperCase();
   const nowStr = new Date().toISOString();
 
-  if (trackingStep && Array.isArray(steps)) {
+  if (normalizedStatus === 'CANCELLED') {
+    steps.push({
+      step: `Cancelled: ${cancelReason || 'Customer requested cancellation'}`,
+      time: nowStr,
+      done: true,
+      isCancelled: true
+    });
+  } else if (normalizedStatus === 'REFUND_REQUESTED') {
+    steps.push({
+      step: `Return & Refund Claim Filed: ${refundDetails?.reason || 'Materials review'}`,
+      time: nowStr,
+      done: true
+    });
+  } else if (normalizedStatus === 'REFUNDED') {
+    steps.push({
+      step: 'Refund Approved & Claim Processed by QA',
+      time: nowStr,
+      done: true
+    });
+  } else if (trackingStep && Array.isArray(steps)) {
     steps = steps.map((s: any) => {
       if (s.step === trackingStep) {
         return { ...s, done: true, time: nowStr };
@@ -459,18 +549,54 @@ export async function updateOrderStatus(
     });
   }
 
+  const refundDetailsJson = refundDetails ? JSON.stringify(refundDetails) : order.refund_details;
+  const paymentStatus = normalizedStatus === 'REFUNDED' ? 'Refunded' : order.payment_status;
+
   const result = await query(
     `UPDATE shop.orders
      SET delivery_status = $1,
+         status = $1,
          current_tracking_step = COALESCE($2, current_tracking_step),
          tracking_steps = $3,
+         cancel_reason = COALESCE($4, cancel_reason),
+         cancelled_at = CASE WHEN $1 = 'CANCELLED' THEN NOW() ELSE cancelled_at END,
+         refund_details = COALESCE($5, refund_details),
+         payment_status = $6,
          updated_at = NOW()
-     WHERE id = $4
+     WHERE id = $7
      RETURNING *`,
-    [normalizedStatus, trackingStep || normalizedStatus, JSON.stringify(steps), order.id]
+    [
+      normalizedStatus, 
+      trackingStep || normalizedStatus, 
+      JSON.stringify(steps), 
+      cancelReason || null,
+      refundDetailsJson,
+      paymentStatus,
+      order.id
+    ]
   );
 
   const updatedOrder = result.rows[0];
+
+  // If order was cancelled or refund approved with stock restoration, restore inventory in shop.products
+  if (normalizedStatus === 'CANCELLED' || restoreStock) {
+    try {
+      const itemsRes = await query(
+        `SELECT product_id, quantity FROM shop.order_items WHERE order_id = $1`,
+        [order.id]
+      );
+      for (const item of itemsRes.rows) {
+        if (item.product_id) {
+          await query(
+            `UPDATE shop.products SET stock = stock + $1 WHERE id = $2`,
+            [item.quantity, item.product_id]
+          );
+        }
+      }
+    } catch (stockErr) {
+      console.warn('[Restore Stock Error]:', stockErr);
+    }
+  }
 
   // Insert Audit Log Entry
   try {
@@ -480,11 +606,20 @@ export async function updateOrderStatus(
       auditUserId = adminLookup.rows[0]?.id || null;
     }
 
+    const auditAction = normalizedStatus === 'CANCELLED' 
+      ? 'ORDER_CANCELLED' 
+      : normalizedStatus === 'REFUND_REQUESTED' 
+      ? 'REFUND_REQUESTED' 
+      : normalizedStatus === 'REFUNDED' 
+      ? 'REFUND_APPROVED' 
+      : 'ORDER_STATUS_UPDATED';
+
     await query(
       `INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details)
-       VALUES ($1, 'orders', 'ORDER_STATUS_UPDATED', $2, $3)`,
+       VALUES ($1, 'orders', $2, $3, $4)`,
       [
         auditUserId,
+        auditAction,
         order.order_number || order.id,
         JSON.stringify({
           order_id: order.id,
@@ -493,8 +628,8 @@ export async function updateOrderStatus(
           new_status: normalizedStatus,
           customer_name: order.customer_name,
           total: order.total,
-          updated_by: actorDetails?.name || 'Admin',
-          notes: actorDetails?.notes || null,
+          updated_by: actorDetails?.name || 'User',
+          notes: actorDetails?.notes || cancelReason || null,
           timestamp: nowStr
         })
       ]

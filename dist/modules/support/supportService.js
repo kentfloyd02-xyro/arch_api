@@ -67,13 +67,15 @@ export async function createInquiry(payload) {
     const initialMessages = Array.isArray(payload.messages) && payload.messages.length > 0
         ? payload.messages
         : [{ sender: 'user', text: payload.question, createdAt: new Date().toISOString() }];
+    const isValidUuid = typeof payload.customerId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.customerId);
+    const customerId = isValidUuid ? payload.customerId : null;
     const result = await query(`INSERT INTO shop.support_inquiries (
        ticket_number, customer_id, customer_name, customer_email, question, messages, guest_access_token, status
      )
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'open')
      RETURNING *`, [
         ticketNumber,
-        payload.customerId || null,
+        customerId,
         payload.customerName,
         payload.customerEmail,
         payload.question,
@@ -102,16 +104,18 @@ export async function getInquiries(statusFilter, customerFilter) {
         conditions.push(`status = 'closed'`);
     }
     if (customerFilter) {
-        if (customerFilter.customerEmail && customerFilter.customerId) {
-            params.push(customerFilter.customerEmail.toLowerCase(), customerFilter.customerId);
+        const isValidUuid = typeof customerFilter.customerId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerFilter.customerId);
+        const validCustomerId = isValidUuid ? customerFilter.customerId : null;
+        if (customerFilter.customerEmail && validCustomerId) {
+            params.push(customerFilter.customerEmail.toLowerCase(), validCustomerId);
             conditions.push(`(LOWER(customer_email) = $${params.length - 1} OR customer_id = $${params.length})`);
         }
         else if (customerFilter.customerEmail) {
             params.push(customerFilter.customerEmail.toLowerCase());
             conditions.push(`LOWER(customer_email) = $${params.length}`);
         }
-        else if (customerFilter.customerId) {
-            params.push(customerFilter.customerId);
+        else if (validCustomerId) {
+            params.push(validCustomerId);
             conditions.push(`customer_id = $${params.length}`);
         }
     }

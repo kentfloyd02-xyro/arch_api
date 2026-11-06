@@ -23,7 +23,7 @@ const passwordResetSessions = new Map<string, ResetSession>();
 
 export async function loginUser(email: string, passwordPlain: string) {
   const result = await query(
-    `SELECT id, email, password_hash, full_name, global_role, is_active
+    `SELECT id, email, password_hash, full_name, global_role, phone_number, company, default_address, privacy_consent, is_active
      FROM auth_core.users
      WHERE LOWER(email) = LOWER($1)`,
     [email]
@@ -48,10 +48,24 @@ export async function loginUser(email: string, passwordPlain: string) {
     id: user.id,
     email: user.email,
     full_name: user.full_name,
-    global_role: user.global_role
+    name: user.full_name,
+    global_role: user.global_role,
+    phone_number: user.phone_number,
+    phone: user.phone_number,
+    phoneNumber: user.phone_number,
+    company: user.company,
+    default_address: user.default_address,
+    defaultAddress: user.default_address,
+    address: user.default_address,
+    privacy_consent: user.privacy_consent,
+    privacyConsent: user.privacy_consent || { granted: true, policyVersion: 'RA10173-2026.1' }
   };
 
-  const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign(
+    { id: user.id, email: user.email, full_name: user.full_name, global_role: user.global_role },
+    env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
 
   // Log to audit log
   await query(
@@ -69,7 +83,7 @@ export async function loginUser(email: string, passwordPlain: string) {
 export async function initLogin(email: string, passwordPlain: string) {
   const cleanEmail = email.trim().toLowerCase();
   const result = await query(
-    `SELECT id, email, password_hash, full_name, global_role, is_active
+    `SELECT id, email, password_hash, full_name, global_role, phone_number, company, default_address, privacy_consent, is_active
      FROM auth_core.users
      WHERE LOWER(email) = LOWER($1)`,
     [cleanEmail]
@@ -94,10 +108,24 @@ export async function initLogin(email: string, passwordPlain: string) {
     id: user.id,
     email: user.email,
     full_name: user.full_name,
-    global_role: user.global_role
+    name: user.full_name,
+    global_role: user.global_role,
+    phone_number: user.phone_number,
+    phone: user.phone_number,
+    phoneNumber: user.phone_number,
+    company: user.company,
+    default_address: user.default_address,
+    defaultAddress: user.default_address,
+    address: user.default_address,
+    privacy_consent: user.privacy_consent,
+    privacyConsent: user.privacy_consent || { granted: true, policyVersion: 'RA10173-2026.1' }
   };
 
-  const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign(
+    { id: user.id, email: user.email, full_name: user.full_name, global_role: user.global_role },
+    env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
   const otpCode = String(Math.floor(100000 + Math.random() * 900000));
 
   loginOtpSessions.set(cleanEmail, {
@@ -173,7 +201,7 @@ export async function resendLoginOtp(email: string) {
 
   if (!session) {
     const userRes = await query(
-      `SELECT id, full_name, email, global_role FROM auth_core.users WHERE LOWER(email) = LOWER($1)`,
+      `SELECT id, full_name, email, global_role, phone_number, company, default_address, privacy_consent FROM auth_core.users WHERE LOWER(email) = LOWER($1)`,
       [cleanEmail]
     );
     if (userRes.rows.length > 0) {
@@ -183,9 +211,23 @@ export async function resendLoginOtp(email: string) {
         id: u.id,
         email: u.email,
         full_name: u.full_name,
-        global_role: u.global_role
+        name: u.full_name,
+        global_role: u.global_role,
+        phone_number: u.phone_number,
+        phone: u.phone_number,
+        phoneNumber: u.phone_number,
+        company: u.company,
+        default_address: u.default_address,
+        defaultAddress: u.default_address,
+        address: u.default_address,
+        privacy_consent: u.privacy_consent,
+        privacyConsent: u.privacy_consent || { granted: true, policyVersion: 'RA10173-2026.1' }
       };
-      const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign(
+        { id: u.id, email: u.email, full_name: u.full_name, global_role: u.global_role },
+        env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
       session = {
         otpCode: '',
         user: payload,
@@ -199,6 +241,7 @@ export async function resendLoginOtp(email: string) {
         user: {
           id: 'guest',
           full_name: 'Customer',
+          name: 'Customer',
           email: cleanEmail,
           role: 'customer',
           global_role: 'customer'
@@ -315,17 +358,24 @@ export async function registerUser(
   // Max 11 digits numeric phone number format (Philippine mobile standard)
   const cleanPhone = phoneNumber ? phoneNumber.replace(/\D/g, '').slice(0, 11) : null;
   const passwordHash = await bcrypt.hash(passwordPlain, 10);
+  const privacyConsentObj = { granted: true, consentedAt: new Date().toISOString(), policyVersion: 'RA10173-2026.1' };
+
   const result = await query(
-    `INSERT INTO auth_core.users (email, password_hash, full_name, global_role, phone_number, company, default_address)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, email, full_name, global_role, phone_number, created_at`,
-    [email, passwordHash, fullName, role, cleanPhone, company || null, defaultAddress || null]
+    `INSERT INTO auth_core.users (email, password_hash, full_name, global_role, phone_number, company, default_address, privacy_consent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id, email, full_name, global_role, phone_number, company, default_address, privacy_consent, created_at`,
+    [email, passwordHash, fullName, role, cleanPhone, company || null, defaultAddress || null, JSON.stringify(privacyConsentObj)]
   );
 
+  const row = result.rows[0];
   const newUser = {
-    ...result.rows[0],
-    phoneNumber: result.rows[0].phone_number,
-    phone: result.rows[0].phone_number
+    ...row,
+    name: row.full_name,
+    phone: row.phone_number,
+    phoneNumber: row.phone_number,
+    address: row.default_address,
+    defaultAddress: row.default_address,
+    privacyConsent: row.privacy_consent || privacyConsentObj
   };
   const token = jwt.sign(
     { id: newUser.id, email: newUser.email, full_name: newUser.full_name, global_role: newUser.global_role },
@@ -341,7 +391,7 @@ export async function registerUser(
 
 export async function getUserProfile(userId: string) {
   const userResult = await query(
-    `SELECT u.id, u.email, u.full_name, u.global_role, u.avatar_url, u.phone_number, u.created_at,
+    `SELECT u.id, u.email, u.full_name, u.global_role, u.avatar_url, u.phone_number, u.company, u.default_address, u.privacy_consent, u.created_at,
             e.employee_no, e.employment_status, d.name AS department_name, p.title AS position_title
      FROM auth_core.users u
      LEFT JOIN hrms.employees e ON e.user_id = u.id
@@ -355,5 +405,86 @@ export async function getUserProfile(userId: string) {
     throw { statusCode: 404, code: 'USER_NOT_FOUND', message: 'User record not found.' };
   }
 
-  return userResult.rows[0];
+  const row = userResult.rows[0];
+  return {
+    ...row,
+    name: row.full_name,
+    phone: row.phone_number,
+    phoneNumber: row.phone_number,
+    address: row.default_address,
+    defaultAddress: row.default_address,
+    privacyConsent: row.privacy_consent || { granted: true, policyVersion: 'RA10173-2026.1' }
+  };
+}
+
+export async function updateUserProfile(userId: string, data: {
+  fullName?: string;
+  name?: string;
+  phoneNumber?: string;
+  phone?: string;
+  defaultAddress?: string;
+  address?: string;
+  company?: string;
+  privacyConsent?: any;
+}) {
+  const userRes = await query('SELECT * FROM auth_core.users WHERE id = $1', [userId]);
+  if (userRes.rows.length === 0) {
+    throw { statusCode: 404, code: 'USER_NOT_FOUND', message: 'User not found.' };
+  }
+  const current = userRes.rows[0];
+  const fullName = data.fullName || data.name || current.full_name;
+  const rawPhone = data.phoneNumber !== undefined ? data.phoneNumber : data.phone;
+  const phone = rawPhone !== undefined
+    ? (rawPhone ? String(rawPhone).replace(/\D/g, '').slice(0, 11) : null)
+    : current.phone_number;
+  const address = data.defaultAddress !== undefined || data.address !== undefined
+    ? (data.defaultAddress || data.address || null)
+    : current.default_address;
+  const company = data.company !== undefined ? (data.company || null) : current.company;
+  const privacyConsent = data.privacyConsent !== undefined
+    ? JSON.stringify(data.privacyConsent)
+    : (current.privacy_consent ? JSON.stringify(current.privacy_consent) : JSON.stringify({ granted: true }));
+
+  const updated = await query(
+    `UPDATE auth_core.users
+     SET full_name = $1, phone_number = $2, default_address = $3, company = $4, privacy_consent = $5, updated_at = NOW()
+     WHERE id = $6
+     RETURNING id, email, full_name, global_role, phone_number, company, default_address, privacy_consent, created_at, updated_at`,
+    [fullName, phone, address, company, privacyConsent, userId]
+  );
+
+  const row = updated.rows[0];
+  return {
+    ...row,
+    name: row.full_name,
+    phone: row.phone_number,
+    phoneNumber: row.phone_number,
+    defaultAddress: row.default_address,
+    address: row.default_address,
+    privacyConsent: row.privacy_consent
+  };
+}
+
+export async function getCustomers() {
+  const result = await query(
+    `SELECT id, email, full_name, global_role, phone_number, company, default_address, privacy_consent, created_at
+     FROM auth_core.users
+     WHERE global_role NOT IN ('superadmin', 'admin') OR global_role IS NULL
+     ORDER BY created_at DESC`
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    _id: row.id,
+    name: row.full_name,
+    fullName: row.full_name,
+    email: row.email,
+    phone: row.phone_number || '',
+    phoneNumber: row.phone_number || '',
+    company: row.company || '',
+    defaultAddress: row.default_address || '',
+    address: row.default_address || '',
+    privacyConsent: row.privacy_consent || { granted: true, policyVersion: 'RA10173-2026.1' },
+    createdAt: row.created_at,
+    globalRole: row.global_role
+  }));
 }

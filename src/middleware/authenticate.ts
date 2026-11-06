@@ -18,7 +18,6 @@ declare global {
 }
 
 export function authenticate(req: Request, res: Response, next: NextFunction) {
-  // Check Authorization Header: Bearer <token>
   const authHeader = req.headers.authorization;
   let token: string | undefined;
 
@@ -51,4 +50,25 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
       }
     });
   }
+}
+
+export function optionalAuthenticate(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  let token: string | undefined;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else if (req.cookies && req.cookies.archon_token) {
+    token = req.cookies.archon_token;
+  }
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, env.JWT_SECRET) as AuthUser;
+      req.user = decoded;
+    } catch {
+      // Ignore token decode error for optional auth
+    }
+  }
+  next();
 }

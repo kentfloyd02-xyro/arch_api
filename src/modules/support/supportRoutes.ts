@@ -1,17 +1,19 @@
 import { Router } from 'express';
 import * as supportController from './supportController.js';
-import { authenticate } from '../../middleware/authenticate.js';
+import { authenticate, optionalAuthenticate } from '../../middleware/authenticate.js';
 
 const router = Router();
 
-// Prepared topic & AI assistant answers (Requires login)
-router.post('/answer', authenticate, supportController.answerQuestion);
+// Prepared topic & AI assistant answers
+router.post('/answer', optionalAuthenticate, supportController.answerQuestion);
 
-// Customer inquiries (Tickets - Requires login)
-router.post('/inquiries', authenticate, supportController.createInquiry);
-router.get('/inquiries', authenticate, supportController.getInquiries);
-router.get('/inquiries/:id', authenticate, supportController.getInquiry);
-router.post('/inquiries/:id/messages', authenticate, supportController.addMessage);
+// Customer inquiries (Tickets)
+router.post('/inquiries', optionalAuthenticate, supportController.createInquiry);
+router.get('/inquiries', optionalAuthenticate, supportController.getInquiries);
+router.get('/inquiries/:id', optionalAuthenticate, supportController.getInquiry);
+router.post('/inquiries/:id/messages', optionalAuthenticate, supportController.addMessage);
+
+// Admin-only management
 router.post('/inquiries/:id/reply', authenticate, supportController.replyInquiry);
 router.post('/inquiries/:id/close', authenticate, supportController.closeInquiry);
 

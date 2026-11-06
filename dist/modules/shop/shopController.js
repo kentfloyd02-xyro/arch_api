@@ -54,6 +54,7 @@ export async function createProduct(req, res, next) {
     try {
         const schema = z.object({
             categoryId: z.string().uuid().optional(),
+            category: z.string().optional(),
             customId: z.string().optional(),
             title: z.string().min(2),
             description: z.string().optional(),
@@ -61,7 +62,8 @@ export async function createProduct(req, res, next) {
             stock: z.number().int().nonnegative().optional(),
             sku: z.string().optional(),
             images: z.array(z.string()).optional(),
-            specs: z.record(z.any()).optional()
+            specs: z.record(z.any()).optional(),
+            shippingWeightKg: z.number().optional()
         });
         const parsed = schema.parse(req.body);
         const data = await shopService.createProduct(parsed);
@@ -84,6 +86,16 @@ export async function updateProduct(req, res, next) {
 export async function getVouchers(req, res, next) {
     try {
         const data = await shopService.getVouchers();
+        res.json({ success: true, data });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+// Projects
+export async function getProjects(req, res, next) {
+    try {
+        const data = await shopService.getProjects();
         res.json({ success: true, data });
     }
     catch (err) {
@@ -147,10 +159,13 @@ export async function checkout(req, res, next) {
 export async function getOrders(req, res, next) {
     try {
         const { status, search } = req.query;
-        // If not admin, restrict to logged-in user
-        const userId = req.user && req.user.global_role !== 'superadmin' ? req.user.id : undefined;
+        const userRole = String(req.user?.global_role || req.user?.role || '').toLowerCase();
+        const isAdmin = userRole === 'superadmin' || userRole === 'admin';
+        const userId = isAdmin ? undefined : req.user?.id;
+        const customerEmail = isAdmin ? undefined : req.user?.email;
         const data = await shopService.getAllOrders({
             userId,
+            customerEmail,
             status: status,
             search: search
         });
@@ -176,6 +191,9 @@ export async function updateOrder(req, res, next) {
             status: z.string().optional(),
             trackingStep: z.string().optional(),
             notes: z.string().optional(),
+            cancelReason: z.string().optional(),
+            refundDetails: z.any().optional(),
+            restoreStock: z.boolean().optional(),
             performedBy: z.any().optional()
         });
         const parsed = schema.parse(req.body);
@@ -185,10 +203,10 @@ export async function updateOrder(req, res, next) {
         }
         const actorUserId = req.user?.id || null;
         const actorDetails = typeof parsed.performedBy === 'object' ? parsed.performedBy : {
-            name: parsed.performedBy || req.user?.full_name || 'Admin',
+            name: parsed.performedBy || req.user?.full_name || 'User',
             notes: parsed.notes
         };
-        const data = await shopService.updateOrderStatus(req.params.id, targetStatus, parsed.trackingStep, actorUserId, actorDetails);
+        const data = await shopService.updateOrderStatus(req.params.id, targetStatus, parsed.trackingStep, actorUserId, actorDetails, parsed.cancelReason || parsed.notes, parsed.refundDetails, parsed.restoreStock);
         res.json({ success: true, data });
     }
     catch (err) {

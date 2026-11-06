@@ -45,7 +45,9 @@ export async function login(req, res, next) {
         });
         res.json({
             success: true,
-            data: result
+            data: result,
+            token: result.token,
+            user: result.user
         });
     }
     catch (err) {
@@ -80,7 +82,9 @@ export async function verifyOtp(req, res, next) {
         }
         res.json({
             success: true,
-            data: result
+            data: result,
+            token: result.token,
+            user: result.user
         });
     }
     catch (err) {
@@ -147,7 +151,34 @@ export async function me(req, res, next) {
         const profile = await authService.getUserProfile(userId);
         res.json({
             success: true,
-            data: profile
+            data: profile,
+            user: profile
+        });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+export async function updateProfile(req, res, next) {
+    try {
+        const userId = req.user.id;
+        const updated = await authService.updateUserProfile(userId, req.body);
+        res.json({
+            success: true,
+            data: updated,
+            user: updated
+        });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+export async function getCustomers(req, res, next) {
+    try {
+        const customers = await authService.getCustomers();
+        res.json({
+            success: true,
+            data: customers
         });
     }
     catch (err) {
