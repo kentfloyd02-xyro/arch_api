@@ -727,14 +727,14 @@ export async function updateOrderStatus(
 
   const result = await query(
     `UPDATE shop.orders
-     SET delivery_status = $1,
-         status = $1,
-         current_tracking_step = COALESCE($2, current_tracking_step),
-         tracking_steps = $3,
-         cancel_reason = COALESCE($4, cancel_reason),
-         cancelled_at = CASE WHEN $1 = 'CANCELLED' THEN NOW() ELSE cancelled_at END,
-         refund_details = COALESCE($5, refund_details),
-         payment_status = $6,
+     SET delivery_status = $1::varchar,
+         status = $1::varchar,
+         current_tracking_step = COALESCE($2::varchar, current_tracking_step),
+         tracking_steps = $3::jsonb,
+         cancel_reason = COALESCE($4::text, cancel_reason),
+         cancelled_at = CASE WHEN $1::text = 'CANCELLED' THEN NOW() ELSE cancelled_at END,
+         refund_details = COALESCE($5::jsonb, refund_details),
+         payment_status = $6::varchar,
          updated_at = NOW()
      WHERE id = $7
      RETURNING *`,

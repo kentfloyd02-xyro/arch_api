@@ -11,8 +11,8 @@ export const app = express();
 // Base Middlewares
 app.use(corsMiddleware);
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(requestLogger);
 // Health Check Endpoint (System and Database failover status)
 app.get('/health', async (req, res) => {
