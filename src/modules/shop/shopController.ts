@@ -126,17 +126,24 @@ export async function checkout(req: Request, res: Response, next: NextFunction) 
       customerEmail: z.string().email(),
       customerPhone: z.string().min(7),
       deliveryAddress: z.string().min(5),
-      deliveryNotes: z.string().optional(),
+      deliveryNotes: z.string().optional().nullable(),
       paymentMethod: z.enum(['GCash', 'Maya', 'Bank', 'COD']),
-      gcashRefNumber: z.string().optional(),
-      proofImage: z.string().optional(),
-      subtotal: z.number().nonnegative(),
+      gcashRefNumber: z.string().optional().nullable(),
+      proofImage: z.string().optional().nullable(),
+      subtotal: z.number().nonnegative().optional(),
+      shippingFee: z.number().nonnegative().optional(),
       discount: z.number().nonnegative().optional(),
-      total: z.number().nonnegative(),
-      voucherCode: z.string().optional(),
+      discountAmount: z.number().nonnegative().optional(),
+      discountType: z.string().optional().nullable(),
+      total: z.number().nonnegative().optional(),
+      totalAmount: z.number().nonnegative().optional(),
+      voucherCode: z.string().optional().nullable(),
+      userId: z.string().optional().nullable(),
       items: z.array(
         z.object({
-          productId: z.string().uuid().optional(),
+          productId: z.string().optional().nullable(),
+          customId: z.string().optional().nullable(),
+          id: z.string().optional().nullable(),
           title: z.string().min(1),
           price: z.number().positive(),
           quantity: z.number().int().positive(),
@@ -146,9 +153,21 @@ export async function checkout(req: Request, res: Response, next: NextFunction) 
     });
 
     const parsed = schema.parse(req.body);
-    const userId = req.user?.id;
+    const subtotal = parsed.subtotal ?? parsed.items.reduce((s, i) => s + i.total, 0);
+    const total = parsed.total ?? parsed.totalAmount ?? subtotal;
+    const discount = parsed.discount ?? parsed.discountAmount ?? 0;
+    const shippingFee = parsed.shippingFee ?? 0;
+    const userId = req.user?.id || parsed.userId || (req.body as any).userId || null;
+
     const data = await shopService.createOrder({
       ...parsed,
+      subtotal,
+      shippingFee,
+      discount,
+      discountAmount: discount,
+      discountType: parsed.discountType || '',
+      total,
+      totalAmount: total,
       userId
     });
 

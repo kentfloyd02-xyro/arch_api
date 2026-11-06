@@ -200,21 +200,32 @@ export async function getProjects() {
 // ORDERS & CHECKOUT (WITH AUTO-DISPATCH CREATION)
 // ------------------------------------------------------------------------------
 export async function createOrder(data) {
-    const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+    const currentYear = new Date().getFullYear();
+    const randomSuffix = Math.floor(10000 + Math.random() * 90000);
+    const orderNumber = `AN-ORD-${currentYear}-${randomSuffix}`;
     const defaultTrackingSteps = [
         { step: 'Order Placed', time: new Date().toISOString(), done: true },
+        { step: 'Payment Review', time: data.paymentMethod === 'COD' ? 'Approved (COD)' : 'Payment Verified', done: true },
         { step: 'Factory Packed', time: '', done: false },
         { step: 'In Transit', time: '', done: false },
-        { step: 'Out for Delivery', time: '', done: false },
         { step: 'Delivered', time: '', done: false }
     ];
+    const shippingFee = data.shippingFee || 0;
+    const discount = data.discount ?? data.discountAmount ?? 0;
+    const total = data.total ?? data.totalAmount ?? (data.subtotal + shippingFee - discount);
+    const initialStatus = 'CONFIRMED';
     // 1. Insert Order
     const orderRes = await query(`INSERT INTO shop.orders (
        order_number, user_id, customer_name, customer_email, customer_phone,
        delivery_address, delivery_notes, payment_method, payment_status,
-       gcash_ref_number, proof_image, subtotal, discount, total,
-       delivery_status, current_tracking_step, tracking_steps
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'Pending', 'Order Placed', $15)
+       gcash_ref_number, proof_image, subtotal, shipping_fee, discount, discount_amount, discount_type,
+       total, total_amount, status, delivery_status, current_tracking_step, tracking_steps, items
+     ) VALUES (
+       $1, $2, $3, $4, $5,
+       $6, $7, $8, $9,
+       $10, $11, $12, $13, $14, $15, $16,
+       $17, $18, $19, $20, $21, $22, $23
+     )
      RETURNING *`, [
         orderNumber,
         data.userId || null,
@@ -228,17 +239,39 @@ export async function createOrder(data) {
         data.gcashRefNumber || null,
         data.proofImage || null,
         data.subtotal,
-        data.discount || 0,
-        data.total,
-        JSON.stringify(defaultTrackingSteps)
+        shippingFee,
+        discount,
+        discount,
+        data.discountType || '',
+        total,
+        total,
+        initialStatus,
+        initialStatus,
+        'Order Placed',
+        JSON.stringify(defaultTrackingSteps),
+        JSON.stringify(data.items)
     ]);
     const order = orderRes.rows[0];
     // 2. Insert Order Items & decrement product stock
     for (const item of data.items) {
+        let resolvedProductId = null;
+        const targetKey = item.productId || item.id || item.customId;
+        if (targetKey) {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetKey);
+            if (isUuid) {
+                resolvedProductId = targetKey;
+            }
+            else {
+                const pLookup = await query('SELECT id FROM shop.products WHERE custom_id = $1 LIMIT 1', [targetKey]);
+                if (pLookup.rows.length > 0) {
+                    resolvedProductId = pLookup.rows[0].id;
+                }
+            }
+        }
         await query(`INSERT INTO shop.order_items (order_id, product_id, title, price, quantity, total)
-       VALUES ($1, $2, $3, $4, $5, $6)`, [order.id, item.productId || null, item.title, item.price, item.quantity, item.total]);
-        if (item.productId) {
-            await query(`UPDATE shop.products SET stock = GREATEST(0, stock - $1) WHERE id = $2`, [item.quantity, item.productId]);
+       VALUES ($1, $2, $3, $4, $5, $6)`, [order.id, resolvedProductId, item.title, item.price, item.quantity, item.total]);
+        if (resolvedProductId) {
+            await query(`UPDATE shop.products SET stock = GREATEST(0, stock - $1), sold = COALESCE(sold, 0) + $1 WHERE id = $2`, [item.quantity, resolvedProductId]);
         }
     }
     // 3. Increment voucher usage if applied
