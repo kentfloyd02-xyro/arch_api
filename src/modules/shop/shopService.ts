@@ -713,6 +713,12 @@ export async function updateOrderStatus(
       time: nowStr,
       done: true
     });
+  } else if (normalizedStatus === 'REFUND_REJECTED') {
+    steps.push({
+      step: `Return Claim Rejected: ${refundDetails?.rejectedReason || cancelReason || 'Inspection criteria not met'}`,
+      time: nowStr,
+      done: true
+    });
   } else if (trackingStep && Array.isArray(steps)) {
     steps = steps.map((s: any) => {
       if (s.step === trackingStep) {
