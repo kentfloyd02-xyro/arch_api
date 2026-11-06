@@ -161,13 +161,13 @@ export async function checkout(req, res, next) {
             paymentMethod: z.enum(['GCash', 'Maya', 'Bank', 'COD']),
             gcashRefNumber: z.string().optional().nullable(),
             proofImage: z.string().optional().nullable(),
-            subtotal: z.number().nonnegative().optional(),
-            shippingFee: z.number().nonnegative().optional(),
-            discount: z.number().nonnegative().optional(),
-            discountAmount: z.number().nonnegative().optional(),
+            subtotal: z.coerce.number().nonnegative().optional(),
+            shippingFee: z.coerce.number().nonnegative().optional(),
+            discount: z.coerce.number().nonnegative().optional(),
+            discountAmount: z.coerce.number().nonnegative().optional(),
             discountType: z.string().optional().nullable(),
-            total: z.number().nonnegative().optional(),
-            totalAmount: z.number().nonnegative().optional(),
+            total: z.coerce.number().nonnegative().optional(),
+            totalAmount: z.coerce.number().nonnegative().optional(),
             voucherCode: z.string().optional().nullable(),
             userId: z.string().optional().nullable(),
             items: z.array(z.object({
@@ -175,9 +175,9 @@ export async function checkout(req, res, next) {
                 customId: z.string().optional().nullable(),
                 id: z.string().optional().nullable(),
                 title: z.string().min(1),
-                price: z.number().positive(),
-                quantity: z.number().int().positive(),
-                total: z.number().positive()
+                price: z.coerce.number().positive(),
+                quantity: z.coerce.number().int().positive(),
+                total: z.coerce.number().positive()
             })).min(1, 'Order must contain at least one item')
         });
         const parsed = schema.parse(req.body);
