@@ -16,6 +16,8 @@ async function runMigration() {
 
   try {
     await query(sql);
+    // Ensure deleted_at column exists in shop.products table for soft-delete & archiving
+    await query('ALTER TABLE shop.products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;');
     console.log('✅ All 6 schemas and tables created successfully in PostgreSQL:');
     console.log('   - auth_core (Centralized SSO, Users, Sessions, Audit)');
     console.log('   - hrms (Core Human Capital, Employees, Jobs, Onboarding)');

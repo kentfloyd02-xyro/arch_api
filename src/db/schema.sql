@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS auth_core.users (
     avatar_url TEXT,
     phone_number VARCHAR(50),
     is_active BOOLEAN DEFAULT TRUE,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -367,6 +368,7 @@ CREATE TABLE IF NOT EXISTS shop.products (
     images JSONB DEFAULT '[]',
     specs JSONB DEFAULT '{}',
     is_active BOOLEAN DEFAULT TRUE,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
