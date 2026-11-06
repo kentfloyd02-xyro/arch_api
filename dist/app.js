@@ -10,7 +10,6 @@ import apiRouter from './routes/index.js';
 export const app = express();
 // Base Middlewares
 app.use(corsMiddleware);
-app.options('*', corsMiddleware);
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
