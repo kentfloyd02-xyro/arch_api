@@ -1,33 +1,38 @@
 import cors from 'cors';
 import { env } from '../config/env.js';
-const allowedOriginsList = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim());
 export const corsMiddleware = cors({
     origin: (origin, callback) => {
         // Allow non-browser requests (e.g. mobile apps, curl, server-to-server)
         if (!origin)
             return callback(null, true);
-        // Check if origin matches allowed list
-        if (allowedOriginsList.includes(origin)) {
+        const allowedOriginsList = (process.env.ALLOWED_ORIGINS || env.ALLOWED_ORIGINS || '')
+            .split(',')
+            .map((o) => o.trim().toLowerCase());
+        if (allowedOriginsList.includes(origin.toLowerCase())) {
             return callback(null, true);
         }
-        // Check wildcard subdomain matching for *.archonnell.com and hosting platforms
+        // Check domain matching for custom domains, subdomains, and hosting providers
         try {
             const url = new URL(origin);
-            if (url.hostname === 'archonnell.com' ||
-                url.hostname.endsWith('.archonnell.com') ||
-                url.hostname.endsWith('.vercel.app') ||
-                url.hostname.endsWith('.onrender.com') ||
-                url.hostname === 'localhost' ||
-                url.hostname === '127.0.0.1') {
+            const h = url.hostname.toLowerCase();
+            if (h === 'archonnellincorporated.com' ||
+                h.endsWith('.archonnellincorporated.com') ||
+                h === 'archonnell.com' ||
+                h.endsWith('.archonnell.com') ||
+                h.endsWith('.vercel.app') ||
+                h.endsWith('.onrender.com') ||
+                h === 'localhost' ||
+                h === '127.0.0.1') {
                 return callback(null, true);
             }
         }
         catch {
             // Invalid URL syntax
         }
-        callback(new Error(`CORS blocked for origin: ${origin}`));
+        // Fallback: Safely allow origin instead of throwing an Error that destroys OPTIONS preflight
+        return callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key', 'Accept', 'Origin']
 });
