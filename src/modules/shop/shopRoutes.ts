@@ -28,5 +28,7 @@ router.patch('/orders/:id/status', optionalAuthenticate, shopController.updateOr
 router.post('/categories', authenticate, authorize(['superadmin', 'admin']), shopController.createCategory);
 router.post('/products', authenticate, authorize(['superadmin', 'admin']), shopController.createProduct);
 router.put('/products/:id', authenticate, authorize(['superadmin', 'admin']), shopController.updateProduct);
+router.patch('/products/:id/archive', authenticate, authorize(['superadmin', 'admin']), shopController.archiveProduct);
+router.delete('/products/:id', authenticate, authorize(['superadmin', 'admin']), shopController.deleteProduct);
 
 export default router;

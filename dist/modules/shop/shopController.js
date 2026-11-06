@@ -82,6 +82,24 @@ export async function updateProduct(req, res, next) {
         next(err);
     }
 }
+export async function archiveProduct(req, res, next) {
+    try {
+        const data = await shopService.archiveProduct(req.params.id, req.body?.isActive);
+        res.json({ success: true, data });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+export async function deleteProduct(req, res, next) {
+    try {
+        const data = await shopService.deleteProduct(req.params.id);
+        res.json({ success: true, message: 'Product deleted successfully', data });
+    }
+    catch (err) {
+        next(err);
+    }
+}
 // Vouchers
 export async function getVouchers(req, res, next) {
     try {

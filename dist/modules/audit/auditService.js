@@ -55,11 +55,23 @@ export async function getAuditLogs(options = {}) {
             else if (row.details.message) {
                 detailsText = String(row.details.message);
             }
+            else if (row.details.order_number && row.details.customer_name) {
+                detailsText = `Order ${row.details.order_number} placed by ${row.details.customer_name} (PHP ${Number(row.details.total || 0).toLocaleString()} via ${row.details.payment_method || 'Online'})`;
+            }
+            else if (row.details.new_status) {
+                detailsText = `Order status advanced to ${row.details.new_status}${row.details.notes ? ` (${row.details.notes})` : ''}`;
+            }
             else {
                 detailsText = JSON.stringify(row.details);
             }
             if (!targetText && row.details.target) {
                 targetText = String(row.details.target);
+            }
+            else if (!targetText && row.details.order_number) {
+                targetText = String(row.details.order_number);
+            }
+            else if (!targetText && row.details.title) {
+                targetText = String(row.details.title);
             }
         }
         else if (row.details) {

@@ -130,6 +130,57 @@ export async function updateProduct(id, data) {
     const result = await query(sql, params);
     return result.rows[0];
 }
+export async function archiveProduct(id, isActive) {
+    const current = await getProductById(id);
+    const nextActive = isActive !== undefined ? isActive : !current.is_active;
+    const result = await query(`UPDATE shop.products SET is_active = $1, updated_at = NOW() WHERE id::text = $2 OR custom_id = $2 RETURNING *`, [nextActive, id]);
+    if (result.rows.length === 0) {
+        throw { statusCode: 404, code: 'PRODUCT_NOT_FOUND', message: 'Product not found.' };
+    }
+    try {
+        const adminLookup = await query("SELECT id FROM auth_core.users WHERE global_role IN ('superadmin', 'admin') LIMIT 1");
+        const auditUserId = adminLookup.rows[0]?.id || null;
+        await query(`INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details)
+       VALUES ($1, 'inventory', $2, $3, $4)`, [
+            auditUserId,
+            nextActive ? 'PRODUCT_UNARCHIVED' : 'PRODUCT_ARCHIVED',
+            current.title || id,
+            JSON.stringify({
+                product_id: id,
+                title: current.title,
+                is_active: nextActive,
+                details: nextActive ? `Product "${current.title}" restored to active catalog` : `Product "${current.title}" archived from catalog`
+            })
+        ]);
+    }
+    catch (e) { }
+    return result.rows[0];
+}
+export async function deleteProduct(id) {
+    const current = await getProductById(id);
+    await query(`UPDATE shop.order_items SET product_id = NULL WHERE product_id = $1`, [current.id]);
+    await query(`DELETE FROM shop.reviews WHERE product_id = $1`, [current.id]);
+    const result = await query(`DELETE FROM shop.products WHERE id::text = $1 OR custom_id = $1 RETURNING *`, [id]);
+    if (result.rows.length === 0) {
+        throw { statusCode: 404, code: 'PRODUCT_NOT_FOUND', message: 'Product not found.' };
+    }
+    try {
+        const adminLookup = await query("SELECT id FROM auth_core.users WHERE global_role IN ('superadmin', 'admin') LIMIT 1");
+        const auditUserId = adminLookup.rows[0]?.id || null;
+        await query(`INSERT INTO auth_core.audit_logs (user_id, module, action, resource_id, details)
+       VALUES ($1, 'inventory', 'PRODUCT_DELETED', $2, $3)`, [
+            auditUserId,
+            current.title || id,
+            JSON.stringify({
+                product_id: id,
+                title: current.title,
+                details: `Product "${current.title}" permanently removed from catalog`
+            })
+        ]);
+    }
+    catch (e) { }
+    return result.rows[0];
+}
 // ------------------------------------------------------------------------------
 // VOUCHERS
 // ------------------------------------------------------------------------------
