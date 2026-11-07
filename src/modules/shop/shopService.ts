@@ -510,10 +510,15 @@ export async function createOrder(data: {
       if (isUuid) {
         resolvedProductId = targetKey;
       } else {
-        const pLookup = await query('SELECT id FROM shop.products WHERE custom_id = $1 LIMIT 1', [targetKey]);
+        const pLookup = await query('SELECT id FROM shop.products WHERE custom_id ILIKE $1 OR title ILIKE $2 LIMIT 1', [targetKey, item.title]);
         if (pLookup.rows.length > 0) {
           resolvedProductId = pLookup.rows[0].id;
         }
+      }
+    } else if (item.title) {
+      const pLookup = await query('SELECT id FROM shop.products WHERE title ILIKE $1 LIMIT 1', [item.title]);
+      if (pLookup.rows.length > 0) {
+        resolvedProductId = pLookup.rows[0].id;
       }
     }
 
